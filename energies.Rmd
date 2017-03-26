@@ -1,0 +1,124 @@
+---
+title: "MAP565 - Time series analysis Estimation de modèles GARCH par maximum de vraisemblance"
+author: ""
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+# Plots
+ 11
+ 
+ 
+```{r}
+# Time Series Plotting
+library(ggplot2);theme_set(theme_bw())
+ 
+# Get cac40 and sp500 stock data from Yahoo Finance
+engie_url = "http://chart.finance.yahoo.com/table.csv?s=ENGIY&a=11&b=31&c=2011&d=11&e=31&f=2016&g=d&ignore=.csv"
+total_url = "http://chart.finance.yahoo.com/table.csv?s=TOT&a=11&b=31&c=2011&d=11&e=31&f=2016&g=d&ignore=.csv"
+
+yahoo.read <- function(url){
+   dat <- read.table(url,header=TRUE,sep=",")
+   #print(dat)
+   df <- dat[,c(1,7)] # Adj.Close
+   df$Date <- as.Date(as.character(df$Date))
+   return(df)}
+ 
+
+engie <- yahoo.read(engie_url)
+total <- yahoo.read(total_url)
+
+
+ggplot(engie,aes(Date,Adj.Close)) + 
+  geom_line(aes(color="engie")) +
+  geom_line(data=total,aes(color="total")) +
+  labs(color="Legend") +
+  scale_colour_manual("", breaks = c("engie", "total"),
+                          values = c("blue", "brown")) +
+  ggtitle("Adjusted Closing Stock Prices: engie & total") + 
+  theme(plot.title = element_text(lineheight=.7, face="bold"))
+```
+```{r, message=FALSE, warning=FALSE}
+# Plot with the htmlwidget dygraphs
+# dygraph() needs xts time series objects
+library(xts)
+library(dygraphs)
+engie_xts <- xts(engie$Adj.Close,order.by=engie$Date,frequency=365)
+total_xts <- xts(total$Adj.Close,order.by=total$Date,frequency=365)
+ 
+stocks <- cbind(engie_xts,total_xts)
+ 
+dygraph(stocks,ylab="Adj.Close", 
+        main="engie and total Adjusted Closing Stock Prices") %>%
+  dySeries("..1",label="engie") %>%
+  dySeries("..2",label="total") %>%
+  dyOptions(colors = c("blue","brown")) %>%
+  dyRangeSelector()
+```
+
+
+# Rendements
+
+```{r}
+engie$log = log(engie$Adj.Close)
+total$log = log(total$Adj.Close)
+
+ggplot(engie,aes(Date,log)) + 
+  geom_line(aes(color="engie")) +
+  geom_line(data=total,aes(color="total"))
+
+
+engie.diff = diff(engie$Adj.Close)
+total.diff = diff(total$Adj.Close)
+
+ggplot(NULL) + 
+  geom_line(aes(x=1:length(total.diff),y=total.diff,color="total.diff"))+
+  geom_line(aes(x=1:length(engie.diff),y=engie.diff,color="engie.diff"))
+```
+```{r}
+engie.log_return = diff(log(engie$Adj.Close), lag=1)*100 # in pourcent
+total.log_return = diff(log(total$Adj.Close), lag=1)*100
+
+ggplot(NULL) + 
+  geom_line(aes(x=1:length(engie.log_return),y=engie.log_return,color="engie.log_return"))+
+  geom_line(aes(x=1:length(engie.log_return),y=total.log_return,color="total.log_return"))
+```
+
+```{r}
+summary(engie)
+summary(total)
+summary(engie.diff)
+summary(total.diff)
+summary(engie.log_return)
+summary(total.log_return)
+```
+
+Simulation de gaussien avec les mêmes moyenne et variance
+
+```{r}
+require(MASS)
+engie.gauss = mvrnorm(n = length(engie.diff), mean(engie.log_return), var(engie.log_return))
+total.gauss = mvrnorm(n = length(engie.diff), mean(total.log_return), var(engie.log_return))
+ggplot(NULL) + 
+  geom_line(aes(x=1:length(engie.log_return),y=engie.gauss,color="gaussien"))+
+  geom_line(aes(x=1:length(engie.log_return),y=engie.log_return,color="engie.log_return"))
+ggplot(NULL) + 
+  geom_line(aes(x=1:length(engie.log_return),y=total.gauss,color="gaussien"))+
+  geom_line(aes(x=1:length(engie.log_return),y=total.log_return,color="total.log_return"))
+```
+
+
+
+```{r}
+library(stats)
+acf(engie.log_return, lag.max = NULL,type = c("correlation", "covariance", "partial"),plot = TRUE, na.action = na.fail, demean = TRUE)
+acf(total.log_return, lag.max = NULL,type = c("correlation", "covariance", "partial"),plot = TRUE, na.action = na.fail, demean = TRUE)
+```
+
+
+
+
