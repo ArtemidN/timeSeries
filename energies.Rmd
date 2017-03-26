@@ -80,7 +80,7 @@ ggplot(NULL) +
   geom_line(aes(x=1:length(engie.diff),y=engie.diff,color="engie.diff"))
 ```
 ```{r}
-engie.log_return = diff(log(engie$Adj.Close), lag=1)*100 # in pourcent
+engie.log_return = diff(log(engie$Adj.Close), lag=1)*100 # in pourcents
 total.log_return = diff(log(total$Adj.Close), lag=1)*100
 
 ggplot(NULL) + 
@@ -120,5 +120,16 @@ acf(total.log_return, lag.max = NULL,type = c("correlation", "covariance", "part
 ```
 
 
+```{r}
+library(PerformanceAnalytics)
+library(zoo)
+engie.zoo=zoo(engie[,-1], order.by=as.Date(strptime(as.character(engie[,1]), "%Y-%m-%d")))
+plot(engie.zoo, main="engie.zoo")
+
+
+tmp <- engie.zoo[,"Adj.Close"]
+tmp.ret <- CalculateReturns(tmp)
+plot(tmp.ret, main="Return Series for Crude and BIST100 (USD based) Index", xlab="Date")
+```
 
 
