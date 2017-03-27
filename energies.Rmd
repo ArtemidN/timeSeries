@@ -10,8 +10,6 @@ output:
 ---
 
 # Plots
- 11
- 
  
 ```{r}
 # Time Series Plotting
@@ -123,13 +121,77 @@ acf(total.log_return, lag.max = NULL,type = c("correlation", "covariance", "part
 ```{r}
 library(PerformanceAnalytics)
 library(zoo)
-engie.zoo=zoo(engie[,-1], order.by=as.Date(strptime(as.character(engie[,1]), "%Y-%m-%d")))
+engie.zoo = zoo(engie[,-1], order.by=as.Date(strptime(as.character(engie[,1]), "%Y-%m-%d")))
 plot(engie.zoo, main="engie.zoo")
 
 
-tmp <- engie.zoo[,"Adj.Close"]
-tmp.ret <- CalculateReturns(tmp)
-plot(tmp.ret, main="Return Series for Crude and BIST100 (USD based) Index", xlab="Date")
+engie.zoo.ret <- engie.zoo[,"Adj.Close"]
+engie.zoo.ret <- CalculateReturns(engie.zoo)*100
+plot(engie.zoo.ret, main="Return Series for engie (USD based) Index", xlab="Date")
+
+# Use only the last two years of returns
+engie.zoo.ret.Tail = as.ts( tail( engie.zoo.ret, 500 ) )
+ 
+# Fit the model
+gspcArma = armaFit( formula=~arma(2,2), data=engie.zoo.ret.Tail )
 ```
+
+https://www.youtube.com/watch?v=wsYXKh_xmSs
+
+```{r}
+library(tseries)
+library(forecast)
+library(FinTS)
+library(rugarch)
+
+ENGIY = get.hist.quote(instrument = "ENGIY", quote = c("Cl", "Vol"))
+plot(ENGIY, main = "ENGIE")
+
+ENGIY.ret = diff(log(ENGIY$Close))*100
+plot(ENGIY.ret)
+
+fit1 <- auto.arima(ENGIY.ret, trace=TRUE,test = "kpss",ic ="bic")
+fit1
+Box.test(fit1$residuals^2,lag=12,type="Ljung-Box")
+
+res_garch11_spec = ugarchspec(variance.model = list(garchOrder =c(1,1)),mean.model = list(armaOrder=c(1,0)))
+res_garch11_spec
+
+res_garch11_fit = ugarchfit(spec = res_garch11_spec,data=ENGIY.ret)
+res_garch11_fit
+
+ctrl = list(tol=1e-7, delta = 1e-9)
+res_garch11_roll = ugarchroll(res_garch11_spec, ENGIY.ret, n.start = 120, refit.every = 1, refit.window = "moving", solver = "hybrid",calculate.VaR = TRUE,VaR.alpha = 0.01, keep.coef = TRUE,solver.control = ctrl, fit.control = list(scale=1))
+
+
+report(res_garch11_roll, type = "vaR", VaR.alpha = 0.01, conf.level = 0.99)
+
+plot(res_garch11_fit,ylim=c(-20,20))
+
+res_garch11_fcst = ugarchforecast(res_garch11_fit, n.ahead = 12)
+res_garch11_fcst
+
+
+
+
+
+
+
+
+
+#pour TOTAL ça marche pas
+TOT = get.hist.quote(instrument = "TOT", quote = c("Cl", "Vol"))[800:1200,]
+plot(TOT, main = "TOTAL")
+
+TOT.ret = diff(log(TOT$Close))*100
+plot(TOT.ret,ylim=c(-20,20))
+
+fit2 <- auto.arima(TOT.ret, trace=TRUE,test = "kpss",ic ="bic")
+fit2
+Box.test(fit2$residuals^2,lag=12,type="Ljung-Box")
+
+```
+
+
 
 
