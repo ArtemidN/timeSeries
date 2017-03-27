@@ -132,6 +132,9 @@ plot(engie.zoo.ret, main="Return Series for engie (USD based) Index", xlab="Date
 # Use only the last two years of returns
 engie.zoo.ret.Tail = as.ts( tail( engie.zoo.ret, 500 ) )
  
+
+library( quantmod )
+library( fArma )
 # Fit the model
 gspcArma = armaFit( formula=~arma(2,2), data=engie.zoo.ret.Tail )
 ```
