@@ -139,6 +139,20 @@ library( fArma )
 gspcArma = armaFit( formula=~arma(2,2), data=engie.zoo.ret.Tail )
 ```
 
+```{r}
+x = AirPassengers
+plot(x)
+
+library(forecast)
+fm = auto.arima(x)
+fm
+p = forecast(fm,12)
+plot(p)
+```
+
+
+
+
 https://www.youtube.com/watch?v=wsYXKh_xmSs
 
 ```{r}
