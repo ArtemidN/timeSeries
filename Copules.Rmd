@@ -1,128 +1,174 @@
 ---
-title: "Copules"
-output: html_notebook
+title: "Analyse de rendement des actions de ENGIE et TOTAL"
+author: "Francisco ECKHARDT et Artem NEMCHENKO"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
 ---
 
-```{r}
-# Time Series Plotting
+Dans ce projet on voudrait analyser le rendement des actifs des compagnies ENGIE et TOTAL.
+
+# Données
+
+Les données sont les prix d'action de ENGIE et de TOTAL pour 5 ans à partir de 01/01/2012 jusq'au 31/12/2016, elles peuvent être trouvées par des leins suivants:
+
+  http://finance.yahoo.com/quote/ENGIY/history?period1=1325286000&period2=1483138800&interval=1d&filter=history&frequency=1d
+  http://finance.yahoo.com/quote/TOT/history?period1=1325286000&period2=1483138800&interval=1d&filter=history&frequency=1d
+
+On s'y intéresse aux prix de cloture ajustés (*Adjusted Close*) à partir desquels on va calculer le 
+
+```{r, message=FALSE, warning=FALSE}
 library(ggplot2);theme_set(theme_bw())
  
-# Get cac40 and sp500 stock data from Yahoo Finance
 engie_url = "http://chart.finance.yahoo.com/table.csv?s=ENGIY&a=11&b=31&c=2011&d=11&e=31&f=2016&g=d&ignore=.csv"
 total_url = "http://chart.finance.yahoo.com/table.csv?s=TOT&a=11&b=31&c=2011&d=11&e=31&f=2016&g=d&ignore=.csv"
 
 yahoo.read <- function(url){
    dat <- read.table(url,header=TRUE,sep=",")
-   #print(dat)
    df <- dat[,c(1,7)] # Adj.Close
    df$Date <- as.Date(as.character(df$Date))
    return(df)}
  
-
 engie <- yahoo.read(engie_url)
 total <- yahoo.read(total_url)
 
-
-ggplot(engie,aes(Date,Adj.Close)) + 
-  geom_line(aes(color="engie")) +
-  geom_line(data=total,aes(color="total")) +
-  labs(color="Legend") +
-  scale_colour_manual("", breaks = c("engie", "total"),
-                          values = c("blue", "brown")) +
-  ggtitle("Adjusted Closing Stock Prices: engie & total") + 
-  theme(plot.title = element_text(lineheight=.7, face="bold"))
+library(xts)
+library(dygraphs)
+engie_xts <- xts(engie$Adj.Close,order.by=engie$Date,frequency=365)
+total_xts <- xts(total$Adj.Close,order.by=total$Date,frequency=365)
+ 
+stocks <- cbind(engie_xts,total_xts)
+ 
+dygraph(stocks,ylab="Adj.Close", 
+        main="ENGIE and TOTAL Adjusted Close Stock Prices") %>%
+  dySeries("..1",label="engie") %>%
+  dySeries("..2",label="total") %>%
+  dyOptions(colors = c("blue","brown")) %>%
+  dyRangeSelector()
 ```
 
 
-# log returns 
+# Rendement de l'action - log returns
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 library(PerformanceAnalytics)
 library(zoo)
+
 engie.zoo = zoo(engie[,-1], order.by=as.Date(strptime(as.character(engie[,1]), "%Y-%m-%d")))
-engie.zoo.ret <- CalculateReturns(engie.zoo)*100
-plot(engie.zoo.ret, main="Return Series for engie (USD based)", xlab="Date")
+engie.zoo.ret = CalculateReturns(engie.zoo)*100
 
-
+total.zoo = zoo(total[,-1], order.by=as.Date(strptime(as.character(total[,1]), "%Y-%m-%d")))
+total.zoo.ret = CalculateReturns(total.zoo)*100
 
 engie.ret = diff(log(engie$Adj.Close))*100
-plot(engie.ret)
 total.ret = diff(log(total$Adj.Close))*100
-plot(total.ret)
+
+ggplot(NULL) + 
+  geom_line(aes(x=1:length(engie.ret),y=engie.ret,color="engie.ret"))+
+  geom_line(aes(x=1:length(total.ret),y=total.ret,color="total.ret"))+ylim(-5,5)+ggtitle("Rendements - log returns")
+
+plot(engie.ret,total.ret, xlim=c(-5,5), ylim=c(-5,5))
+abline(a = 0, b = 1, col = 2)
+```
+
+## Un peu de statistique
+
+```{r, message=FALSE, warning=FALSE}
+summary(engie$Adj.Close)
+summary(total$Adj.Close)
+summary(engie.ret)
+var(engie.ret)
+summary(total.ret)
+var(total.ret)
+```
+
+## ACF 
+```{r, message=FALSE, warning=FALSE}
+library(stats)
+acf(engie.ret, lag.max = NULL,type = c("correlation", "covariance", "partial"),plot = TRUE, na.action = na.fail, demean = TRUE)
+acf(total.ret, lag.max = NULL,type = c("correlation", "covariance", "partial"),plot = TRUE, na.action = na.fail, demean = TRUE)
+```
+
+Ici, à partir de ces images on peut supposer que la fonction d’autocovariance $\rho(h)$ pour les deux séries temporelles (ENGIE et TOTAL) est zéro pour $h\ne 0$ (car ces valeurs sont plus petites que l'intervalle de confiance). Ainsi, on suppose que le log rendement des actifs est un bruit blanc faible.
+
+## Comparaison avec le processus gaussien des mêmes paramètres
+
+On voit que nos processus vraiment ressemblent visuellement le gaussien
+
+```{r, message=FALSE, warning=FALSE}
+require(MASS)
+engie.gauss = mvrnorm(n = length(engie.ret), mean(engie.ret), var(engie.ret))
+total.gauss = mvrnorm(n = length(total.ret), mean(total.ret), var(total.ret))
+ggplot(NULL) + 
+  geom_line(aes(x=1:length(engie.ret),y=engie.gauss,color="gaussien"))+
+  geom_line(aes(x=1:length(total.ret),y=engie.ret,color="engie.ret"))+ggtitle("Rendement ENGIE et gaussien")
+ggplot(NULL) + 
+  geom_line(aes(x=1:length(engie.ret),y=total.gauss,color="gaussien"))+
+  geom_line(aes(x=1:length(total.ret),y=total.ret,color="total.ret"))+ggtitle("Rendement TOTAL et gaussien")
+```
 
 
+
+## Un petit peu de prédiction - on essaie de les approximer par le modèle *ARIMA*, on il n'est pas convenable dans ce cas, un des paramètres est zéro - on obtient `ARIMA(0,1,0)`
+
+```{r, message=FALSE, warning=FALSE}
+library(forecast)
 engie.ts.ret = ts(engie[1:500,],frequency = 7)
-plot(engie.ts.ret[,"Adj.Close"])
-
 y=auto.arima(engie.ts.ret[,"Adj.Close"])
 y
 plot(forecast(y,h=30))
 ```
 
 
-
-
-```{r}
+```{r, message=FALSE, warning=FALSE}
 y=auto.arima(ts(engie.zoo.ret[1100:1200],freq = 7))
 y
 plot(forecast(y,h=30))
-
 ```
 
 
-# Copules
+# Corrélation empirique
 
 ```{r}
-require(graphics)
+corr.e = (mean(engie.ret*total.ret)-mean(engie.ret)*mean(total.ret))/sd(engie.ret)/sd(total.ret)
+print(corr.e)
+```
+
+# Fonctions de répartition empirique
+
+$$\hat F_n(t) = \frac{ \mbox{number of elements in the sample} \leq t}n = \frac{1}{n} \sum_{i=1}^n \mathbf{1}(X_i\leq x)$$
+
+
+```{r, message=FALSE, warning=FALSE}
+library(graphics)
+library(scatterplot3d)
+
 engie.Fn <- ecdf(engie.ret)
-summary(engie.Fn)
-plot(engie.Fn)
+total.Fn <- ecdf(total.ret)
+plot(engie.Fn,col="blue",main="Fonctions de répartition empiriques marginales")
+lines(total.Fn,col="green")
 
-total.Fn <- ecdf(engie.ret)
-summary(total.Fn)
-plot(total.Fn)
-
-cumsum(cumsum(epdf,1),2)./total
-
-
-Fn2 <- function(x, y) {
-  X = sort(engie.ret);      Y = sort(total.ret)
-  l = length(X)+length(Y)
-  if (length(x)==length(x)){
-    z = 1:length(x)
-    for (xx in x) {
-      zz = 0
-      for (yy in y) {
-        n.x = which.max(X[X<xx]);  n.y = which.max(Y[Y<yy])
-        zz <- c(zz,(n.x+n.y)/l)
-      }
-      z = cbind(z,zz)
-    } 
-    z =z[-1,]
-  }else{
-    n.x = which.max(X[X<x[0]]);  n.y = which.max(Y[Y<y[0]])
-    z <- (n.x+n.y)/l
-    print("Only first from x (y) is taken")
+Fn2 = function(x,y,X,Y){
+  z = 0
+  #X = engie.ret; Y = total.ret
+  l = length(X)
+  if (length(X)!=length(Y)){
+    print("Problem : length(X)!=length(Y)") 
   }
+  for (i in 1:l){
+    if ((X[i]<x)&(Y[i]<y)){
+      z = z+1
+    }
+  }
+  z = z/l
   return(z)
 }
 
-Fn2_0 <- function(x, y){
-  X = sort(engie.ret);      Y = sort(total.ret)
-  l = length(X)+length(Y)
-  n.x = which.max(X[X<x]);  n.y = which.max(Y[Y<y])
-  if (length(n.x)==0) n.x = 0
-  if (length(n.y)==0) n.y = 0
-  z <- (n.x+n.y)/l
-  return(z)
-}
-Fn2_0(-10,-10)
-
-x = -10:10; y = -10:10
-x1 <- seq(from = -10, to =  10, by = 0.5)
-y1 <- seq(from = -9, to =  9, by = 0.5)
-
-PreptoPlot = function(x,y){
+PreptoPlot = function(x,y,X,Y,copule.b =  FALSE){
   xx = 0
   yy = 0
   zz = 0
@@ -130,7 +176,11 @@ PreptoPlot = function(x,y){
     for (j in y){
       xx = c(xx,i)
       yy = c(yy,j)
-      zz = c(zz,Fn2_0(i,j))
+      if (copule.b){
+        zz = c(zz,copule(i,j,X,Y))
+      }else{
+        zz = c(zz,Fn2(i,j,X,Y))
+      }
     }
   }
   xx = xx[-1]
@@ -139,92 +189,145 @@ PreptoPlot = function(x,y){
   z = data.frame(xx,yy,zz)
   return(z)
 }
-toPlot = PreptoPlot(x,y)
-toPlot1 = PreptoPlot(x1,y1)
 
-scatterplot3d(x = toPlot$xx,
-                   y = toPlot$yy,
-                   z = toPlot$zz)
-scatterplot3d(x = toPlot1$xx,
-                   y = toPlot1$yy,
-                   z = toPlot1$zz)#, angle = 24)
-
-
-
-## Fit a linear regression
-lmFit <- lm(y ~ x1 + x2, data = dat)
-## Create x1, x2 values to predict y for
-x1 <- seq(from = 2, to =  4, by = 0.1)
-x2 <- seq(from = 4, to = 10, by = 0.1)
-## Predict y
-y <- outer(X = x1, Y = x2, FUN = function(x1, x2) {
-    predict(lmFit, newdata = data.frame(x1 = x1, x2 = x2))})
-## Regression plane
-persp(x = x1,
-      y = x2,
-      z = y,
-      theta = 30, phi = 20, expand = 0.6, shade = 0.3)
-
-```
-```{r}
-scatterplot3d(x = toPlot1$xx,
-                   y = toPlot1$yy,
-                   z = toPlot1$zz, angle = 115)
+x = seq(from = -10, to =  10, by = 0.5); y = seq(from = -9,  to =  9,  by = 0.5)
+toPlot = PreptoPlot(x,y,engie.ret,total.ret)
+scatterplot3d(x = toPlot$xx, y = toPlot$yy, z = toPlot$zz, angle = 115)
 ```
 
 
-https://www.r-bloggers.com/modelling-dependence-with-copulas-in-r/
-```{r}
-library(MASS)
-set.seed(100)
+## Plot 3D
 
-m <- 3
-n <- 2000
-sigma <- matrix(c(1, 0.4, 0.2,
-                  0.4, 1, -0.8,
-                  0.2, -0.8, 1), 
-                nrow=3)
-z <- mvrnorm(n,mu=rep(0, m),Sigma=sigma,empirical=T)
+```{r, message=FALSE, warning=FALSE}
+PreptoPlot3d = function(x,y,X,Y,copule.b = FALSE){
+  lx = length(x)
+  ly = length(y)
+  m = matrix(0,lx,ly)
+  for (i in 1:lx){
+    for (j in 1:ly){
+      if (copule.b){
+        m[i,j] = copule(x[i],y[j],X,Y)
+      }else{
+        m[i,j] = Fn2(x[i],y[j],X,Y) 
+      }
+    }
+  }
+  return(m)
+}
 
+z = PreptoPlot3d(x,y,engie.ret,total.ret)
+persp(x=x, y=y, z=z, theta=-45, phi=30, expand=0.6, shade=0.3,main="Fonction de répartition")
+```
+
+
+# Rank empirique
+
+$$R_k^i=\sum_{j=1}^n \mathbf{1}(X_k^j\leq X_k^i)$$
+
+```{r, message=FALSE, warning=FALSE}
+Rank = function(set,point){
+  set = sort(set)
+  r = which.max(set[set<point])
+  if (length(r)==0) r = 0
+  return(r)
+}
+Rank(engie.ret, -1)
+Rank(engie.ret, 101)
+Rank(total.ret, 101)
+```
+
+# Copule empirique
+
+$$C^n(u_1,\dots,u_d) = \frac{1}{n} \sum_{i=1}^n \mathbf{1}\left(\tilde{U}_1^i\leq u_1,\dots,\tilde{U}_d^i\leq u_d\right)$$
+où
+$$\tilde{U}_k^i=R_k^i/n$$
+Dans notre cas où on cherche à estimer la dépendance de deux actifs, la dimension $d=2$.
+
+```{r, message=FALSE, warning=FALSE}
+copule = function(u,v,X,Y){
+  if (length(X)!=length(Y))
+    print("Problem : length(X)!=length(Y)") 
+  l = length(X)
+  rank.x = 1:l
+  rank.y = 1:l
+  for (i in 1:l){
+    rank.x[i] = Rank(X,X[i])
+    rank.y[i] = Rank(Y,Y[i])
+  }
+  return(Fn2(u,v,rank.x/l,rank.y/l))
+}
+
+copule(0.9,1,engie.ret,total.ret)
+
+xc = seq(from = 0, to =  1, by = 0.1); yc = seq(from = 0, to =  1, by = 0.1)
+zc = PreptoPlot3d(xc,yc,engie.ret,total.ret, copule.b=TRUE)
+persp(x=xc, y=yc, z=zc, theta=-30, phi=30, expand=0.7, shade=0.5, main = "Copule ENGIE/TOTAL")
+
+# toPlot.c = PreptoPlot(xc,yc,engie.ret,total.ret, copule.b=TRUE) # prend beaucoup de temps car n'est pas optimisé
+# scatterplot3d(x = toPlot.c$xx, y = toPlot.c$yy, z = toPlot.c$zz, angle = 115)
+```
+La copule est bien une copule gaussienne.
+
+# Le rho de Spearman
+
+```{r, message=FALSE, warning=FALSE}
+rho = function(X,Y){
+  if (length(X)!=length(Y))
+    print("Problem : length(X)!=length(Y)") 
+  l = length(X)
+  rho = 0
+  for (i in 1:l){
+    for (j in 1:l){
+      rho = rho + copule(i/l,j/l,X,Y) - i*j/l^2
+    }
+  }
+  return(rho*12/(l^2-1)) 
+}
+
+start.time = Sys.time()
+rho.e = rho(engie.ret[1:100],total.ret[1:100])
+end.time = Sys.time()
+time.taken = end.time - start.time
+print(rho.e)
+time.taken
+```
+
+
+
+
+# Partie de test - pour vérifier les paramètres du copule
+
+Dans cette partie on voudrait comparer nos valeurs de la corrélation et du rho de Spearman avec ceux obtenus par des méthodes existantes optimisées. 
+
+La corrélation empirique `corr.e=0.6317` et le rho de Spearman `rho.e = ` ce qui est bien approchant des valeurs quel'on peut voir ci-dessous: 
+
+## Corrélation
+
+```{r, message=FALSE, warning=FALSE}
 library(psych)
-cor(z,method='spearman')
-pairs.panels(z)
+e.t = cbind(engie.ret,total.ret)
+cor(e.t)
+pairs.panels(e.t)
 ```
 
+## Le rho de Spearman
 
-
-------------------------------
-
-
-# https://www.r-bloggers.com/how-to-fit-a-copula-model-in-r/
-
-```{r}
-x <- engie.ret
-y <- total.ret
-
-mat <- matrix(nrow=100,ncol=2)
-
+```{r, message=FALSE, warning=FALSE}
+mat = matrix(0, 100,2)
 for(i in 1:100){
-    mat[i,1] <- x[i]
-    mat[i,2] <- y[i]
+    mat[i,1] = engie.ret[i]
+    mat[i,2] = total.ret[i]
 }
 
 # Actual observations
 plot(mat[,1],mat[,2],main="Returns",xlab="x",ylab="y",col="blue")
 
-
-
 # Normal copula
 library(copula)
-normal.cop <- normalCopula(dim=2)
-fit.cop<- fitCopula(normal.cop,pobs(mat),method="ml")
+normal.cop = normalCopula(dim=2)
+fit.cop = fitCopula(normal.cop,pobs(mat),method="ml")
 
 # Coefficients
-rho <- coef(fit.cop)
+rho = coef(fit.cop)
 print(rho)
 ```
-
-```{r}
-
-```
-
