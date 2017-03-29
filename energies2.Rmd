@@ -1,0 +1,132 @@
+---
+title: "Mémoire - MAP565 Time series analysis - Étude type séries temporelles 2"
+author: ""
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+# Début
+On commence pour télécharger les données dans R et les visualiser.
+```{r echo=FALSE}
+engie_url = "http://chart.finance.yahoo.com/table.csv?s=ENGIY&a=11&b=31&c=2011&d=11&e=31&f=2016&g=d&ignore=.csv"
+total_url = "http://chart.finance.yahoo.com/table.csv?s=TOT&a=11&b=31&c=2011&d=11&e=31&f=2016&g=d&ignore=.csv"
+
+yahoo.read <- function(url){
+   dat <- read.table(url,header=TRUE,sep=",")
+   #print(dat)
+   df <- dat[,c(1,7)] # Adj.Close
+   df$Date <- as.Date(as.character(df$Date))
+   return(df)}
+ 
+
+m <- yahoo.read(engie_url)
+m$log <- log(m$Adj.Close)
+ts <- ts(m[3], end=c(2016,12,30), start=c(2012,01,10), frequency=365)
+plot(ts)
+box()
+```
+```{r}
+dts<-diff(ts)
+plot(dts)
+
+ddts<-diff(dts)
+plot(ddts)
+```
+Pas de trend/saisonnalité évidents!
+```{r echo=FALSE}
+loess <- stl(ts, s.window = "periodic")
+plot(loess)
+```
+Mauvaise répresentation !
+Comparer la décomposition de cette série avec celle des données de température. 
+
+
+-----
+
+
+# Analyse des fonctions d'autocorrélation, d'autocovariance et d'autocorrélation partielle
+
+**Série originale**   
+
+```{r echo=FALSE}
+cor = acf(ts, type = "correlation", plot = FALSE)
+cov = acf(ts, type = "covariance", plot = FALSE)
+par = acf(ts, type = "partial", plot = FALSE)
+plot(cor)
+plot(cov)
+plot(par)
+```
+
+```{r echo=FALSE}
+cor = acf(dts, type = "correlation", plot = FALSE)
+cov = acf(dts, type = "covariance", plot = FALSE)
+par = acf(dts, type = "partial", plot = FALSE)
+plot(cor)
+plot(cov)
+plot(par)
+```
+```{r echo=FALSE}
+cor = acf(ddts, type = "correlation", plot = FALSE)
+cov = acf(ddts, type = "covariance", plot = FALSE)
+par = acf(ddts, type = "partial", plot = FALSE)
+plot(cor)
+plot(cov)
+plot(par)
+```
+Autocorrelation négative peut indiquer sur-différenciation !
+
+
+
+-----
+
+# Estimation ARMA/ARIMA
+
+## Identification a priori
+En plusieurs étapes :  
+  * Enlever un trend et une sasonnalité deterministes et rendre le processus stationnaire.
+  * Déterminer les possibles (p,d,q), en pratique on détermine les plus grandes valeurs possibles pour p et q.  
+
+On gardera d = 1 et observera les fonctions de correlation de la série différenciée une fois.
+
+
+Après différenciation, la fonction AC décroît vite.
+
+* Pour lag > p, on a AC partielle = 0.  
+
+* Pour lag > q, AC = 0.
+
+On fixerait donc, après l'analyse des graphiques :
+```{r}
+pmax <- 0
+qmax <- 0
+```
+Aucuns sens !
+
+*Vérifier bruit blanc...*
+
+
+--------------
+
+### Vérification des hypothèses sur les résidus    
+On fait des test pour vérifier l'absence de corrélation (Box-Pierce) et la normalité des résidus (Jarque-Bera et Kolmogorof-Smirnov).   
+
+
+
+* **Model 10**  
+```{r echo=FALSE}
+plot(dts)
+acf(dts)
+```
+
+```{r echo=FALSE}
+Box.test(dts, type = "Box-Pierce")
+tseries::jarque.bera.test(dts)
+ks.test(x = dts, y = "pnorm", alternative = "two.sided")
+```
+
+
+
