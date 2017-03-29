@@ -155,7 +155,7 @@ plot(p)
 
 https://www.youtube.com/watch?v=wsYXKh_xmSs
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 library(tseries)
 library(forecast)
 library(FinTS)
@@ -178,7 +178,7 @@ res_garch11_fit = ugarchfit(spec = res_garch11_spec,data=ENGIY.ret)
 res_garch11_fit
 
 ctrl = list(tol=1e-7, delta = 1e-9)
-res_garch11_roll = ugarchroll(res_garch11_spec, ENGIY.ret, n.start = 120, refit.every = 1, refit.window = "moving", solver = "hybrid",calculate.VaR = TRUE,VaR.alpha = 0.01, keep.coef = TRUE,solver.control = ctrl, fit.control = list(scale=1))
+res_garch11_roll = ugarchroll(res_garch11_spec, ENGIY.ret, n.start = 120, refit.every = 1, refit.window = "moving", solver = "hybrid",calculate.VaR = TRUE,VaR.alpha = 0.01, keep.coef = TRUE,solver.control = ctrl, fit.control = list(scale=1)) #problem here
 
 
 report(res_garch11_roll, type = "vaR", VaR.alpha = 0.01, conf.level = 0.99)
@@ -187,11 +187,6 @@ plot(res_garch11_fit,ylim=c(-20,20))
 
 res_garch11_fcst = ugarchforecast(res_garch11_fit, n.ahead = 12)
 res_garch11_fcst
-
-
-
-
-
 
 
 
