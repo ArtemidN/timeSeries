@@ -1,21 +1,17 @@
 ---
-  title: "MAP565 - Time series analysis Étude type séries temporelles"
+title: "MAP565 - Time series analysis Étude type séries temporelles"
 author: ""
 output:
   html_document:
-  number_sections: yes
-toc: yes
-pdf_document:
-  toc: yes
+    number_sections: yes
+    toc: yes
+  pdf_document:
+    toc: yes
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
-
-
-## Read data from csv file and set date column
-## plot
-```{r}
+# Start
+Read data from csv file and set date.  
+```{r echo=FALSE}
 m <- read.csv("data/925867.csv")
 ts <- ts(m[4], start=c(1997,03,19), end=c(2017,03,19),frequency=365)
 plot(ts,axes = FALSE, ann=FALSE)
@@ -29,38 +25,265 @@ box()
 ```
 
 
-## Buys Ballot decomposition
-```{r}
-bb <- pastecs::buysbal(ts)
-plot(bb)
+-----
+
+
+# Trend and seasonality
+
+
+/## Buys Ballot decomposition
+```{r echo=FALSE}
+#bb <- pastecs::buysbal(ts)
+#plot(bb)
 ```
 
-
-## ST Loess decomposition
-```{r}
-fit <- stl(ts, s.window = "periodic")
-plot(fit)
+## STL decomposition
+```{r echo=FALSE}
+loess <- stl(ts, s.window = "periodic")
+plot(loess)
 ```
 
 
 ## Moving average decomposition
-```{r}
-ma <- decompose(ts, type = c("additive", "multiplicative"), filter = NULL)
-plot(ma)
+```{r echo=FALSE}
+madd <- decompose(ts, type = "additive", filter = NULL)
+plot(madd)
 ```
 
+-----
 
-## Autocovariance, partial autocov, autocorrelation analysis
-```{r}
+# Autocorrelation, partial autocorrelation, autocovariance analysis
+
+**Original series**  
+
+```{r echo=FALSE}
 cor = acf(ts, type = "correlation", plot = FALSE)
 cov = acf(ts, type = "covariance", plot = FALSE)
 par = acf(ts, type = "partial", plot = FALSE)
-#plot(cor)
-#plot(cov)
-#plot(par)
+plot(cor)
+plot(cov)
+plot(par)
+```
+
+-----
+
+# ARMA/ARIMA estimation
+
+## A priori identification
+  * Determine (p,d,q)
+  * Make the process stationary and remove deterministic trend and seasonality
+
+*Remainder of STL decomposition*  
+
+```{r echo=FALSE}
+rmd <- loess$time.series[,3]
+cor <- acf(rmd, type = "correlation", plot = FALSE)
+cov <- acf(rmd, type = "covariance", plot = FALSE)
+par <- acf(rmd, type = "partial", plot = FALSE)
+plot(cor)
+plot(cov)
+plot(par)
+```
+
+After STL decomposition the ACF decreases to 0 exponentially fast.  
+
+* For lag > p, partial ACF = 0.  
+
+* For lag > q, ACF = 0.  
+
+Let us set:  
+
+```{r}
+pmax <- 2
+qmax <- 10
 ```
 
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+## Estimation
+* Estimation of parameters phi, theta, mu, sigma2
+* Decrease p and q until there are only significative parameters left
+
+Beginning with pmax and qmax:
+
+* Model 1: (p,q) = (2,10)
+```{r echo=FALSE, eval=FALSE}
+mod1 <- arima(rmd, order= c(pmax,0,qmax))
+mod1
+```
+    + Both ma10 and ar2 are not significative.  
+
+
+* Model 2: (p,q) = (2,9)
+```{r echo=FALSE, eval=FALSE}
+mod2 <- arima(rmd, order= c(pmax,0,qmax-1))
+mod2
+```
+    + Both ma9 and ar2 are not significative.  
+
+
+* Model 3: (p,q) = (1,10)
+```{r echo=FALSE, eval=FALSE}
+mod3 <- arima(rmd, order= c(pmax-1,0,qmax))
+mod3
+```
+    + ma10 is not significative.  
+    
+
+* Model 4: (p,q) = (1,9)
+```{r echo=FALSE, eval=FALSE}
+mod4 <- arima(rmd, order= c(pmax-1,0,qmax-1))
+mod4
+```
+    + ma9 and is not significative.  
+
+
+* Model 5: (p,q) = (1,8)
+    + ma8 is not significative.  
+  
+
+```{r echo=FALSE, eval=FALSE}
+mod5 <- arima(rmd, order= c(pmax-1,0,qmax-2))
+mod5
+```
+
+
+* Model 6: (p,q) = (1,7)
+    + ma7 is not significative.  
+
+```{r echo=FALSE, eval=FALSE}
+mod6 <- arima(rmd, order= c(pmax-1,0,qmax-3))
+mod6
+```
+
+
+* Model 7: (p,q) = (1,6)
+```{r echo=FALSE, eval=FALSE}
+mod7 <- arima(rmd, order= c(pmax-1,0,qmax-4))
+mod7
+```
+ma6 is not significative.
+
+
+* Model 8: (p,q) = (1,5)
+```{r echo=FALSE, eval=FALSE}
+mod8 <- arima(rmd, order= c(pmax-1,0,qmax-5))
+mod8
+```
+ma5 is not significative.
+
+
+* Model 9: (p,q) = (1,4)
+```{r echo=FALSE, eval=FALSE}
+mod9 <- arima(rmd, order= c(pmax-1,0,qmax-6))
+mod9
+```
+ma4 is not significative.
+
+
+* Model 10: (p,q) = (1,3)
+```{r echo=FALSE}
+mod10 <- arima(rmd, order= c(pmax-1,0,qmax-7))
+mod10
+```
+Both ar1 and ma4 are significative.
+
+
+* Model 11: (p,q) = (2,8)
+```{r echo=FALSE, eval=FALSE}
+mod11 <- arima(rmd, order= c(pmax,0,qmax-2))
+mod11
+```
+ma8 is not significative.
+
+
+* Model 12: (p,q) = (2,7)
+```{r echo=FALSE, eval=FALSE}
+mod12 <- arima(rmd, order= c(pmax,0,qmax-3))
+mod12
+```
+ma7 is not significative.
+
+
+* Model 13: (p,q) = (2,6)
+```{r echo=FALSE, eval=FALSE}
+mod13 <- arima(rmd, order= c(pmax,0,qmax-4))
+mod13
+```
+ma6 is not significative.
+
+
+* Model 14: (p,q) = (2,5)
+```{r echo=FALSE, eval=FALSE}
+mod14 <- arima(rmd, order= c(pmax,0,qmax-5))
+mod14
+```
+ma5 is not significative.
+
+
+* Model 15: (p,q) = (2,4)
+```{r echo=FALSE}
+mod15 <- arima(rmd, order= c(pmax,0,qmax-6))
+mod15
+```
+Both ar2 and ma4 are significative.  
+
+
+## Model choice and verification
+* Keeping models 10 (1,3) and 15 (2,4)
+```{r echo=FALSE}
+message("pmax = ", pmax)
+message("qmax = ", qmax)
+```
+
+**Model 10:**
+```{r echo=FALSE}
+mod10
+```
+
+**Model 15:**
+```{r echo=FALSE}
+mod15
+```
+Model 10 provides better (smaller) AIC, LogLikelihood and parsimony (p+q) than model 15. 
+
+--------------
+
+**Checking for white noise remainders**  
+
+* Tests  
+    + Box-Pierce  
+    + Jarque-Bera, Kolmogorof-Smirnov (for normality)  
+
+* **Model 15**  
+
+```{r echo=FALSE}
+res15 <- mod15$residuals
+plot(res15)
+acf(res15)
+
+Box.test(res15,lag = 700, fitdf = 6, type = "Box-Pierce")
+tseries::jarque.bera.test(res15)
+ks.test(x = res15, y = "pnorm", alternative = "two.sided")
+```
+  + BP: 
+  + JB: reject 0-hyp
+  + KS: reject 0-hyp
+
+
+* **Model 10**  
+
+```{r echo=FALSE}
+res10 <- mod10$residuals
+plot(res10)
+acf(res10)
+
+Box.test(res10,lag = 700, fitdf = 6, type = "Box-Pierce")
+tseries::jarque.bera.test(res10)
+ks.test(x = res10, y = "pnorm", alternative = "two.sided")
+```
+  + BP: 
+  + JB: reject 0-hyp
+  + KS: reject 0-hyp
+
+
