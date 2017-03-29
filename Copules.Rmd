@@ -71,7 +71,7 @@ ggplot(NULL) +
   geom_line(aes(x=1:length(engie.ret),y=engie.ret,color="engie.ret"))+
   geom_line(aes(x=1:length(total.ret),y=total.ret,color="total.ret"))+ylim(-5,5)+ggtitle("Rendements - log returns")
 
-plot(engie.ret,total.ret, xlim=c(-5,5), ylim=c(-5,5))
+plot(engie.ret,total.ret, xlim=c(-5,5), ylim=c(-5,5),col=c("blue","red"))
 abline(a = 0, b = 1, col = 2)
 ```
 
@@ -150,7 +150,7 @@ library(scatterplot3d)
 engie.Fn <- ecdf(engie.ret)
 total.Fn <- ecdf(total.ret)
 plot(engie.Fn,col="blue",main="Fonctions de répartition empiriques marginales")
-lines(total.Fn,col="green")
+lines(total.Fn,col="red")
 
 Fn2 = function(x,y,X,Y){
   z = 0
@@ -261,7 +261,7 @@ copule(0.9,1,engie.ret,total.ret)
 
 xc = seq(from = 0, to =  1, by = 0.1); yc = seq(from = 0, to =  1, by = 0.1)
 zc = PreptoPlot3d(xc,yc,engie.ret,total.ret, copule.b=TRUE)
-persp(x=xc, y=yc, z=zc, theta=-30, phi=30, expand=0.7, shade=0.5, main = "Copule ENGIE/TOTAL")
+persp(x=xc, y=yc, z=zc, theta=-30, phi=30, expand=0.7, shade=0.5, main = "Copule ENGIE/TOTAL", col="green")
 
 # toPlot.c = PreptoPlot(xc,yc,engie.ret,total.ret, copule.b=TRUE) # prend beaucoup de temps car n'est pas optimisé
 # scatterplot3d(x = toPlot.c$xx, y = toPlot.c$yy, z = toPlot.c$zz, angle = 115)
@@ -307,7 +307,7 @@ La corrélation empirique `corr.e=0.6317` et le rho de Spearman `rho.e = ` ce qui
 library(psych)
 e.t = cbind(engie.ret,total.ret)
 cor(e.t)
-pairs.panels(e.t)
+pairs.panels(e.t, pch = 23, bg =c("blue","red"))
 ```
 
 ## Le rho de Spearman
@@ -318,9 +318,6 @@ for(i in 1:100){
     mat[i,1] = engie.ret[i]
     mat[i,2] = total.ret[i]
 }
-
-# Actual observations
-plot(mat[,1],mat[,2],main="Returns",xlab="x",ylab="y",col="blue")
 
 # Normal copula
 library(copula)
