@@ -1,0 +1,230 @@
+---
+title: "Copules"
+output: html_notebook
+---
+
+```{r}
+# Time Series Plotting
+library(ggplot2);theme_set(theme_bw())
+ 
+# Get cac40 and sp500 stock data from Yahoo Finance
+engie_url = "http://chart.finance.yahoo.com/table.csv?s=ENGIY&a=11&b=31&c=2011&d=11&e=31&f=2016&g=d&ignore=.csv"
+total_url = "http://chart.finance.yahoo.com/table.csv?s=TOT&a=11&b=31&c=2011&d=11&e=31&f=2016&g=d&ignore=.csv"
+
+yahoo.read <- function(url){
+   dat <- read.table(url,header=TRUE,sep=",")
+   #print(dat)
+   df <- dat[,c(1,7)] # Adj.Close
+   df$Date <- as.Date(as.character(df$Date))
+   return(df)}
+ 
+
+engie <- yahoo.read(engie_url)
+total <- yahoo.read(total_url)
+
+
+ggplot(engie,aes(Date,Adj.Close)) + 
+  geom_line(aes(color="engie")) +
+  geom_line(data=total,aes(color="total")) +
+  labs(color="Legend") +
+  scale_colour_manual("", breaks = c("engie", "total"),
+                          values = c("blue", "brown")) +
+  ggtitle("Adjusted Closing Stock Prices: engie & total") + 
+  theme(plot.title = element_text(lineheight=.7, face="bold"))
+```
+
+
+# log returns 
+
+```{r}
+library(PerformanceAnalytics)
+library(zoo)
+engie.zoo = zoo(engie[,-1], order.by=as.Date(strptime(as.character(engie[,1]), "%Y-%m-%d")))
+engie.zoo.ret <- CalculateReturns(engie.zoo)*100
+plot(engie.zoo.ret, main="Return Series for engie (USD based)", xlab="Date")
+
+
+
+engie.ret = diff(log(engie$Adj.Close))*100
+plot(engie.ret)
+total.ret = diff(log(total$Adj.Close))*100
+plot(total.ret)
+
+
+engie.ts.ret = ts(engie[1:500,],frequency = 7)
+plot(engie.ts.ret[,"Adj.Close"])
+
+y=auto.arima(engie.ts.ret[,"Adj.Close"])
+y
+plot(forecast(y,h=30))
+```
+
+
+
+
+```{r}
+y=auto.arima(ts(engie.zoo.ret[1100:1200],freq = 7))
+y
+plot(forecast(y,h=30))
+
+```
+
+
+# Copules
+
+```{r}
+require(graphics)
+engie.Fn <- ecdf(engie.ret)
+summary(engie.Fn)
+plot(engie.Fn)
+
+total.Fn <- ecdf(engie.ret)
+summary(total.Fn)
+plot(total.Fn)
+
+cumsum(cumsum(epdf,1),2)./total
+
+
+Fn2 <- function(x, y) {
+  X = sort(engie.ret);      Y = sort(total.ret)
+  l = length(X)+length(Y)
+  if (length(x)==length(x)){
+    z = 1:length(x)
+    for (xx in x) {
+      zz = 0
+      for (yy in y) {
+        n.x = which.max(X[X<xx]);  n.y = which.max(Y[Y<yy])
+        zz <- c(zz,(n.x+n.y)/l)
+      }
+      z = cbind(z,zz)
+    } 
+    z =z[-1,]
+  }else{
+    n.x = which.max(X[X<x[0]]);  n.y = which.max(Y[Y<y[0]])
+    z <- (n.x+n.y)/l
+    print("Only first from x (y) is taken")
+  }
+  return(z)
+}
+
+Fn2_0 <- function(x, y){
+  X = sort(engie.ret);      Y = sort(total.ret)
+  l = length(X)+length(Y)
+  n.x = which.max(X[X<x]);  n.y = which.max(Y[Y<y])
+  if (length(n.x)==0) n.x = 0
+  if (length(n.y)==0) n.y = 0
+  z <- (n.x+n.y)/l
+  return(z)
+}
+Fn2_0(-10,-10)
+
+x = -10:10; y = -10:10
+x1 <- seq(from = -10, to =  10, by = 0.5)
+y1 <- seq(from = -9, to =  9, by = 0.5)
+
+PreptoPlot = function(x,y){
+  xx = 0
+  yy = 0
+  zz = 0
+  for (i in x){
+    for (j in y){
+      xx = c(xx,i)
+      yy = c(yy,j)
+      zz = c(zz,Fn2_0(i,j))
+    }
+  }
+  xx = xx[-1]
+  yy = yy[-1]
+  zz = zz[-1]
+  z = data.frame(xx,yy,zz)
+  return(z)
+}
+toPlot = PreptoPlot(x,y)
+toPlot1 = PreptoPlot(x1,y1)
+
+scatterplot3d(x = toPlot$xx,
+                   y = toPlot$yy,
+                   z = toPlot$zz)
+scatterplot3d(x = toPlot1$xx,
+                   y = toPlot1$yy,
+                   z = toPlot1$zz)#, angle = 24)
+
+
+
+## Fit a linear regression
+lmFit <- lm(y ~ x1 + x2, data = dat)
+## Create x1, x2 values to predict y for
+x1 <- seq(from = 2, to =  4, by = 0.1)
+x2 <- seq(from = 4, to = 10, by = 0.1)
+## Predict y
+y <- outer(X = x1, Y = x2, FUN = function(x1, x2) {
+    predict(lmFit, newdata = data.frame(x1 = x1, x2 = x2))})
+## Regression plane
+persp(x = x1,
+      y = x2,
+      z = y,
+      theta = 30, phi = 20, expand = 0.6, shade = 0.3)
+
+```
+```{r}
+scatterplot3d(x = toPlot1$xx,
+                   y = toPlot1$yy,
+                   z = toPlot1$zz, angle = 115)
+```
+
+
+https://www.r-bloggers.com/modelling-dependence-with-copulas-in-r/
+```{r}
+library(MASS)
+set.seed(100)
+
+m <- 3
+n <- 2000
+sigma <- matrix(c(1, 0.4, 0.2,
+                  0.4, 1, -0.8,
+                  0.2, -0.8, 1), 
+                nrow=3)
+z <- mvrnorm(n,mu=rep(0, m),Sigma=sigma,empirical=T)
+
+library(psych)
+cor(z,method='spearman')
+pairs.panels(z)
+```
+
+
+
+------------------------------
+
+
+# https://www.r-bloggers.com/how-to-fit-a-copula-model-in-r/
+
+```{r}
+x <- engie.ret
+y <- total.ret
+
+mat <- matrix(nrow=100,ncol=2)
+
+for(i in 1:100){
+    mat[i,1] <- x[i]
+    mat[i,2] <- y[i]
+}
+
+# Actual observations
+plot(mat[,1],mat[,2],main="Returns",xlab="x",ylab="y",col="blue")
+
+
+
+# Normal copula
+library(copula)
+normal.cop <- normalCopula(dim=2)
+fit.cop<- fitCopula(normal.cop,pobs(mat),method="ml")
+
+# Coefficients
+rho <- coef(fit.cop)
+print(rho)
+```
+
+```{r}
+
+```
+
