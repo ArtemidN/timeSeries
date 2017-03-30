@@ -1,5 +1,5 @@
 ---
-title: "Analyse de rendement des actions de ENGIE et TOTAL"
+title: "Mémoire - MAP565 Time series analysis - Analyse de rendement des actifs financiers"
 author: "Francisco ECKHARDT et Artem NEMCHENKO"
 output:
   html_document:
@@ -10,16 +10,14 @@ output:
     toc: yes
 ---
 
-Dans ce projet on voudrait analyser le rendement des actifs des compagnies ENGIE et TOTAL.
+Dans ce projet on voudrait analyser les rendements (log returns) et la dépendance des actions des compagnies ENGIE et TOTAL.
 
 # Données
 
-Les données sont les prix d'action de ENGIE et de TOTAL pour 5 ans à partir de 01/01/2012 jusq'au 31/12/2016, elles peuvent être trouvées par des leins suivants:
+Les données sont les prix de cloture ajustés (*Adjusted Close*) des actions de ENGIE et de TOTAL sur la durée de 5 ans à partir de 01/01/2012 jusqu'au 31/12/2016, elles peuvent être trouvées au travers des liens suivants:
 
   http://finance.yahoo.com/quote/ENGIY/history?period1=1325286000&period2=1483138800&interval=1d&filter=history&frequency=1d
   http://finance.yahoo.com/quote/TOT/history?period1=1325286000&period2=1483138800&interval=1d&filter=history&frequency=1d
-
-On s'y intéresse aux prix de cloture ajustés (*Adjusted Close*) à partir desquels on va calculer le 
 
 ```{r, message=FALSE, warning=FALSE}
 library(ggplot2);theme_set(theme_bw())
@@ -36,15 +34,14 @@ yahoo.read <- function(url){
 engie <- yahoo.read(engie_url)
 total <- yahoo.read(total_url)
 
-library(xts)
-library(dygraphs)
+library(xts); library(dygraphs)
 engie_xts <- xts(engie$Adj.Close,order.by=engie$Date,frequency=365)
 total_xts <- xts(total$Adj.Close,order.by=total$Date,frequency=365)
  
 stocks <- cbind(engie_xts,total_xts)
  
-dygraph(stocks,ylab="Adj.Close", 
-        main="ENGIE and TOTAL Adjusted Close Stock Prices") %>%
+dygraph(stocks,ylab="USD", 
+        main="Prix de cloture ajustés de ENGIE et TOTAL") %>%
   dySeries("..1",label="engie") %>%
   dySeries("..2",label="total") %>%
   dyOptions(colors = c("blue","brown")) %>%
@@ -55,86 +52,143 @@ dygraph(stocks,ylab="Adj.Close",
 # Rendement de l'action - log returns
 
 ```{r, message=FALSE, warning=FALSE}
-library(PerformanceAnalytics)
-library(zoo)
-
+library(zoo); library(PerformanceAnalytics)
 engie.zoo = zoo(engie[,-1], order.by=as.Date(strptime(as.character(engie[,1]), "%Y-%m-%d")))
-engie.zoo.ret = CalculateReturns(engie.zoo)*100
-
+engie.zoo.lr = CalculateReturns(engie.zoo)*100
 total.zoo = zoo(total[,-1], order.by=as.Date(strptime(as.character(total[,1]), "%Y-%m-%d")))
-total.zoo.ret = CalculateReturns(total.zoo)*100
+total.zoo.lr = CalculateReturns(total.zoo)*100
 
-engie.ret = diff(log(engie$Adj.Close))*100
-total.ret = diff(log(total$Adj.Close))*100
+#Il y a plusieurs façons de calcul de log returns
+engie.lr = diff(log(engie$Adj.Close))*100
+total.lr = diff(log(total$Adj.Close))*100
 
-ggplot(NULL) + 
-  geom_line(aes(x=1:length(engie.ret),y=engie.ret,color="engie.ret"))+
-  geom_line(aes(x=1:length(total.ret),y=total.ret,color="total.ret"))+ylim(-5,5)+ggtitle("Rendements - log returns")
+ggplot(NULL) +
+  geom_line(aes(x=as.Date(engie$Date[1:length(engie.lr)]),y=engie.lr,color="engie.lr"))+
+  geom_line(aes(x=as.Date(engie$Date[1:length(engie.lr)]),y=total.lr,color="total.lr"))+ylim(-5,5)+ggtitle("Rendements - log returns")+ xlab("Année")+ ylab("%")
 
-plot(engie.ret,total.ret, xlim=c(-5,5), ylim=c(-5,5),col=c("blue","red"))
+plot(engie.lr,total.lr, xlim=c(-5,5), ylim=c(-5,5),col=c("blue","red"),main="Rendements")
 abline(a = 0, b = 1, col = 2)
 ```
+
+On remarque qu'une dépendance des cours des actions de ENGIE et de cells de TOTAL est bien présente.
 
 ## Un peu de statistique
 
 ```{r, message=FALSE, warning=FALSE}
 summary(engie$Adj.Close)
 summary(total$Adj.Close)
-summary(engie.ret)
-var(engie.ret)
-summary(total.ret)
-var(total.ret)
+summary(engie.lr)
+var(engie.lr)
+summary(total.lr)
+var(total.lr)
 ```
 
-## ACF 
+## Comparaison avec le processus gaussien des mêmes paramètres
+
+On voit que nos processus ressemblent visuellement le processus gaussien indépendant des mêmes paramètres, mais quand même dans nos données il y a des dépendances intrinsèques - il y a des segments de la grande et de la petite volatilités, elles n'est pas indépendante d'une date à l'autre.
+
+```{r, message=FALSE, warning=FALSE}
+require(MASS); library(gridExtra)
+engie.gauss = mvrnorm(n = length(engie.lr), mean(engie.lr), var(engie.lr))
+total.gauss = mvrnorm(n = length(total.lr), mean(total.lr), var(total.lr))
+
+pl1 <- ggplot(NULL) + 
+  geom_line(aes(x=1:length(engie.lr),y=engie.gauss))+ylim(-5,5)+ ggtitle("Processus gaussien indépendant des paramètres de ENGIE")+ ylab("%")+ xlab("Jours")
+pl2 <- ggplot(NULL) + 
+  geom_line(aes(x=1:length(engie.lr),y=engie.lr),color="blue")+ylim(-5,5)+ ggtitle("Rendement ENGIE")+ ylab("%")+ xlab("Jours")
+grid.arrange(pl1, pl2)
+
+pl1t <- ggplot(NULL) + 
+  geom_line(aes(x=1:length(total.lr),y=total.gauss))+ylim(-5,5)+ ggtitle("Processus gaussien indépendant des paramètres de TOTAL")+ ylab("%")+ xlab("Jours")
+pl2t <- ggplot(NULL) + 
+  geom_line(aes(x=1:length(total.lr),y=total.lr),color="red")+ylim(-5,5)+ ggtitle("Rendement TOTAL")+ ylab("%")+ xlab("Jours")
+grid.arrange(pl1t, pl2t)
+```
+
+
+## Méthode ACF pour estimer la fonction d’autocovariance
+
 ```{r, message=FALSE, warning=FALSE}
 library(stats)
-acf(engie.ret, lag.max = NULL,type = c("correlation", "covariance", "partial"),plot = TRUE, na.action = na.fail, demean = TRUE)
-acf(total.ret, lag.max = NULL,type = c("correlation", "covariance", "partial"),plot = TRUE, na.action = na.fail, demean = TRUE)
+acf(engie.lr, lag.max = NULL,type = c("correlation", "covariance", "partial"),plot = TRUE, na.action = na.fail, demean = TRUE)
+acf(total.lr, lag.max = NULL,type = c("correlation", "covariance", "partial"),plot = TRUE, na.action = na.fail, demean = TRUE)
 ```
 
 Ici, à partir de ces images on peut supposer que la fonction d’autocovariance $\rho(h)$ pour les deux séries temporelles (ENGIE et TOTAL) est zéro pour $h\ne 0$ (car ces valeurs sont plus petites que l'intervalle de confiance). Ainsi, on suppose que le log rendement des actifs est un bruit blanc faible.
 
-## Comparaison avec le processus gaussien des mêmes paramètres
 
-On voit que nos processus vraiment ressemblent visuellement le gaussien
-
+## Pour voir d'autres dépendances internes
 ```{r, message=FALSE, warning=FALSE}
-require(MASS)
-engie.gauss = mvrnorm(n = length(engie.ret), mean(engie.ret), var(engie.ret))
-total.gauss = mvrnorm(n = length(total.ret), mean(total.ret), var(total.ret))
-ggplot(NULL) + 
-  geom_line(aes(x=1:length(engie.ret),y=engie.gauss,color="gaussien"))+
-  geom_line(aes(x=1:length(total.ret),y=engie.ret,color="engie.ret"))+ggtitle("Rendement ENGIE et gaussien")
-ggplot(NULL) + 
-  geom_line(aes(x=1:length(engie.ret),y=total.gauss,color="gaussien"))+
-  geom_line(aes(x=1:length(total.ret),y=total.ret,color="total.ret"))+ggtitle("Rendement TOTAL et gaussien")
+library(tseries)
+#engie.ts = ts(engie[,-1], order.by=as.Date(strptime(as.character(engie[,1]), "%Y-%m-%d")))
+engie.ts = ts(data=engie.lr, end=c(2016,12,30), start=c(2012,01,3), frequency=365)
+total.ts = ts(data=total.lr, end=c(2016,12,30), start=c(2012,01,3), frequency=365)
+
+lag.plot(engie.ts,col=4,main="ENGIE")
+lag.plot(total.ts,col=2,main="TOTAL")
+
+engie.decompose = stl(engie.ts, s.window = "periodic")
+plot(engie.decompose)
+total.decompose = stl(total.ts, s.window = "periodic")
+plot(total.decompose)
+
+Box.test(engie.ts, lag = 1, type = "Ljung-Box")
+Box.test(total.ts, lag = 1, type = "Ljung-Box")
 ```
 
+Si la p-value du test de Ljung-Box est plus grands que 0.05 (5%), alors on préfère de ne pas rejeter l'hypothèse nulle qui dit que la série temporelle considérée est indépendante. Pour ENGIE et pour TOTAL on obtenient les p-valeurs bien plus grandes que 0.05, alors on suppose que les séries sont indépendantes (les moments du temps de chaque série sont indépendants).
+
+Mais ce résultat n'est pas en accord avec nos observations précédantes. Alors, regardons ce que nous donnent des madèles de régression suivants.
+
+# Modèles AR et GARCH
+
+```{r, include=FALSE}
+engie.ar = ar(engie.ts)
+total.ar = ar(total.ts)
+
+engie.garch = garch(engie.ts)
+total.garch = garch(total.ts)
+```
+
+```{r, message=FALSE, warning=FALSE}
+engie.ar$order
+total.ar$order
+engie.garch$order
+engie.garch$coef
+total.garch$order
+total.garch$coef
+```
+
+Ainsi, nos séries peuvent être décrites par AR(4) et par GARCH(1,1), alors il y a une sorte de dépendance interne.
 
 
-## Un petit peu de prédiction - on essaie de les approximer par le modèle *ARIMA*, on il n'est pas convenable dans ce cas, un des paramètres est zéro - on obtient `ARIMA(0,1,0)`
+
+## Un petit peu de prédiction
+
+On essaie d'approximer les données par le modèle *ARIMA*, mais il n'est pas convenable dans ce cas, car deux paramètres sont nuls - on obtient `ARIMA(0,1,0)`, $p=q=0$
 
 ```{r, message=FALSE, warning=FALSE}
 library(forecast)
-engie.ts.ret = ts(engie[1:500,],frequency = 7)
-y=auto.arima(engie.ts.ret[,"Adj.Close"])
+engie.ts.lr = ts(engie[1:500,],frequency = 7)
+y=auto.arima(engie.ts.lr[,"Adj.Close"])
 y
 plot(forecast(y,h=30))
 ```
 
 
 ```{r, message=FALSE, warning=FALSE}
-y=auto.arima(ts(engie.zoo.ret[1100:1200],freq = 7))
+y=auto.arima(ts(engie.zoo.lr[1100:1200],freq = 7))
 y
 plot(forecast(y,h=30))
 ```
 
 
-# Corrélation empirique
+
+## Corrélation empirique entre les séries (entre les rendements de ENGIE et TOTAL)
+
 
 ```{r}
-corr.e = (mean(engie.ret*total.ret)-mean(engie.ret)*mean(total.ret))/sd(engie.ret)/sd(total.ret)
+corr.e = (mean(engie.lr*total.lr)-mean(engie.lr)*mean(total.lr))/sd(engie.lr)/sd(total.lr)
 print(corr.e)
 ```
 
@@ -144,17 +198,15 @@ $$\hat F_n(t) = \frac{ \mbox{number of elements in the sample} \leq t}n = \frac{
 
 
 ```{r, message=FALSE, warning=FALSE}
-library(graphics)
-library(scatterplot3d)
-
-engie.Fn <- ecdf(engie.ret)
-total.Fn <- ecdf(total.ret)
+library(graphics); library(scatterplot3d)
+engie.Fn <- ecdf(engie.lr)
+total.Fn <- ecdf(total.lr)
 plot(engie.Fn,col="blue",main="Fonctions de répartition empiriques marginales")
 lines(total.Fn,col="red")
 
 Fn2 = function(x,y,X,Y){
   z = 0
-  #X = engie.ret; Y = total.ret
+  #X = engie.lr; Y = total.lr
   l = length(X)
   if (length(X)!=length(Y)){
     print("Problem : length(X)!=length(Y)") 
@@ -191,10 +243,11 @@ PreptoPlot = function(x,y,X,Y,copule.b =  FALSE){
 }
 
 x = seq(from = -10, to =  10, by = 0.5); y = seq(from = -9,  to =  9,  by = 0.5)
-toPlot = PreptoPlot(x,y,engie.ret,total.ret)
-scatterplot3d(x = toPlot$xx, y = toPlot$yy, z = toPlot$zz, angle = 115)
+toPlot = PreptoPlot(x,y,engie.lr,total.lr)
+scatterplot3d(x = toPlot$xx, y = toPlot$yy, z = toPlot$zz, angle = 115, main="Fonction de répartition jointe empirique", xlab = "x", ylab = "y", zlab = "z", color="blue")
 ```
 
+Les fonctions de répartitions marginales sont presque les mêmes.
 
 ## Plot 3D
 
@@ -215,12 +268,14 @@ PreptoPlot3d = function(x,y,X,Y,copule.b = FALSE){
   return(m)
 }
 
-z = PreptoPlot3d(x,y,engie.ret,total.ret)
-persp(x=x, y=y, z=z, theta=-45, phi=30, expand=0.6, shade=0.3,main="Fonction de répartition")
+z = PreptoPlot3d(x,y,engie.lr,total.lr)
+persp(x=x, y=y, z=z, theta=-45, phi=25, expand=0.6, shade=0.2, main="Fonction de répartition jointe empirique")
 ```
 
 
-# Rank empirique
+# Copule
+
+## Rank empirique
 
 $$R_k^i=\sum_{j=1}^n \mathbf{1}(X_k^j\leq X_k^i)$$
 
@@ -231,12 +286,12 @@ Rank = function(set,point){
   if (length(r)==0) r = 0
   return(r)
 }
-Rank(engie.ret, -1)
-Rank(engie.ret, 101)
-Rank(total.ret, 101)
+Rank(engie.lr, -1)
+Rank(engie.lr, 101)
+Rank(total.lr, 101)
 ```
 
-# Copule empirique
+## Copule empirique
 
 $$C^n(u_1,\dots,u_d) = \frac{1}{n} \sum_{i=1}^n \mathbf{1}\left(\tilde{U}_1^i\leq u_1,\dots,\tilde{U}_d^i\leq u_d\right)$$
 où
@@ -257,15 +312,13 @@ copule = function(u,v,X,Y){
   return(Fn2(u,v,rank.x/l,rank.y/l))
 }
 
-copule(0.9,1,engie.ret,total.ret)
+copule(0.9,1,engie.lr,total.lr)
 
 xc = seq(from = 0, to =  1, by = 0.1); yc = seq(from = 0, to =  1, by = 0.1)
-zc = PreptoPlot3d(xc,yc,engie.ret,total.ret, copule.b=TRUE)
-persp(x=xc, y=yc, z=zc, theta=-30, phi=30, expand=0.7, shade=0.5, main = "Copule ENGIE/TOTAL", col="green")
-
-# toPlot.c = PreptoPlot(xc,yc,engie.ret,total.ret, copule.b=TRUE) # prend beaucoup de temps car n'est pas optimisé
-# scatterplot3d(x = toPlot.c$xx, y = toPlot.c$yy, z = toPlot.c$zz, angle = 115)
+zc = PreptoPlot3d(xc,yc,engie.lr,total.lr, copule.b=TRUE)
+persp(x=xc, y=yc, z=zc, theta=-30, phi=30, expand=0.7, shade=0.5, main="Copule ENGIE/TOTAL", col="green", xlab="x", ylab="y", zlab="z")
 ```
+
 La copule est bien une copule gaussienne.
 
 # Le rho de Spearman
@@ -284,39 +337,39 @@ rho = function(X,Y){
   return(rho*12/(l^2-1)) 
 }
 
-start.time = Sys.time()
-rho.e = rho(engie.ret[1:100],total.ret[1:100])
-end.time = Sys.time()
-time.taken = end.time - start.time
+#start.time = Sys.time()
+N = 100
+rho.e = rho(engie.lr[1:N],total.lr[1:N])
+#end.time = Sys.time()
+#time.taken = end.time - start.time
+#time.taken
 print(rho.e)
-time.taken
 ```
 
+En raison d'absence de l'optimisation, l'algorithme de calcul de rho prend un temps considérable, alors la valeur de rho obtenue ne pas pour toute la longeur des échantillons, mais pour `N=200` d'éléments, est `rho.e = 0.50`
 
-
-
-# Partie de test - pour vérifier les paramètres du copule
+# Quelques vérifications
 
 Dans cette partie on voudrait comparer nos valeurs de la corrélation et du rho de Spearman avec ceux obtenus par des méthodes existantes optimisées. 
 
-La corrélation empirique `corr.e=0.6317` et le rho de Spearman `rho.e = ` ce qui est bien approchant des valeurs quel'on peut voir ci-dessous: 
+La corrélation empirique `corr.e=0.6317` et le rho de Spearman `rho.e = 0.50`, ceux qui sont bien approchant des valeurs quel'on peut voir ci-dessous: 
 
 ## Corrélation
 
 ```{r, message=FALSE, warning=FALSE}
 library(psych)
-e.t = cbind(engie.ret,total.ret)
+e.t = cbind(engie.lr,total.lr)
 cor(e.t)
 pairs.panels(e.t, pch = 23, bg =c("blue","red"))
 ```
 
-## Le rho de Spearman
+## Rho de Spearman
 
 ```{r, message=FALSE, warning=FALSE}
 mat = matrix(0, 100,2)
 for(i in 1:100){
-    mat[i,1] = engie.ret[i]
-    mat[i,2] = total.ret[i]
+    mat[i,1] = engie.lr[i]
+    mat[i,2] = total.lr[i]
 }
 
 # Normal copula
@@ -328,3 +381,18 @@ fit.cop = fitCopula(normal.cop,pobs(mat),method="ml")
 rho = coef(fit.cop)
 print(rho)
 ```
+
+
+
+# Conclusion
+
+1. Le rendement (log return) de ENGIE et ceux de TOTAL sont des bruits blancs faibles.
+2. L'hypothèse de l'indépendance intrinsèque de chaque de ces deux séries temporelles n'est pas par le teste Ljung-Box.
+3. Puis, chaque de deux séries peut être modélisée par AR(4) ou GARCH(1,1), alors il y a une sorte de la dépendance interne dans chaque série de rendements.
+4. La corrélation entre ces deux séries est `0.63`.
+5. Le rho de Spearman (décrit la dépendance entre deux séries) est `0.53`, le résultat "empirique" (estimé par une fonction créée par nous-mêmes) converge vers cette valeur-là (en etant pas optimisé notre petit algorithme calcule plusierus fois les mêmes choses et prend beaucoup de temps).
+6. Les fonction de répartitions marginales empiriques de ENGIE et de TOTAL se ressemblent bien.
+7. La copule empirique ressemble bien celle gaussienne.
+
+
+Alors, les séries de rendement dépendent bien l'une de l'autre, ainsi qu'il y a la dépendance interne "faible" (les log returns sont des bruits blancs faibles)
